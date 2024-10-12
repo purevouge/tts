@@ -17,7 +17,8 @@ app.use(express.static('public'));
 
 // Middleware
 app.use(cors({
-    origin: '*', // Allow all origins for now, you can restrict later for security
+    //origin: '*', // Allow all origins for now, you can restrict later for security
+    origin: 'https://tts-pearl-two.vercel.app/',
     methods: ['GET', 'POST'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
