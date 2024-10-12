@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Text to Speech Audio</title>
+</head>
+<body>
+    <audio id="audioPlayer" controls autoplay>
+        Your browser does not support the audio element.
+    </audio>
+
+    <script>
+        // Function to fetch audio from backend
+        async function fetchAudio(text) {
+            try {
+                const response = await fetch('http://localhost:3000/api/fetch-audio', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ text })
+                });
+
+                if (!response.ok) {
+                    console.error('Error fetching audio:', response.status, response.statusText);
+                    return null;
+                }
+
+                const audioBlob = await response.blob();
+                return URL.createObjectURL(audioBlob); // Return Object URL for audio
+            } catch (error) {
+                console.error('Error:', error);
+                return null;
+            }
+        }
+
+        // Function to split long text into smaller chunks
+        function splitTextIntoChunks(text, maxChunkSize = 150) {
+            const sentences = text.match(/[^\.!\?]+[\.!\?]+/g) || []; // Split into sentences
+            const chunks = [];
+            let currentChunk = '';
+
+            sentences.forEach(sentence => {
+                if ((currentChunk + sentence).length <= maxChunkSize) {
+                    currentChunk += sentence; // Add to current chunk
+                } else {
+                    chunks.push(currentChunk.trim()); // Push current chunk to array
+                    currentChunk = sentence; // Start a new chunk
+                }
+            });
+
+            if (currentChunk) {
+                chunks.push(currentChunk.trim()); // Push any remaining text
+            }
+
+            return chunks;
+        }
+
+        async function playTextAsAudio(text) {
+            const chunks = splitTextIntoChunks(text);
+            console.log('Text chunks:', chunks);
+
+            const audioPlayer = document.getElementById('audioPlayer');
+            let currentChunkIndex = 0;
+            let nextAudioSrc = null;
+
+            // Preload next chunk while playing the current one
+            async function preloadNextChunk() {
+                if (currentChunkIndex + 1 < chunks.length) {
+                    nextAudioSrc = await fetchAudio(chunks[currentChunkIndex + 1]);
+                } else {
+                    nextAudioSrc = null; // No more chunks to load
+                }
+            }
+
+            // Function to play the current chunk and preload the next one
+            async function playCurrentChunk() {
+                const audioSrc = await fetchAudio(chunks[currentChunkIndex]);
+                if (audioSrc) {
+                    audioPlayer.src = audioSrc;
+                    audioPlayer.play();
+                    await preloadNextChunk(); // Preload next chunk in parallel
+                } else {
+                    console.error('Failed to fetch audio for chunk:', currentChunkIndex);
+                    currentChunkIndex++;
+                }
+            }
+
+            // Play the first chunk
+            await playCurrentChunk();
+
+            // Trigger next chunk when current one ends
+            audioPlayer.onended = async () => {
+                currentChunkIndex++;
+                if (nextAudioSrc) {
+                    audioPlayer.src = nextAudioSrc;
+                    audioPlayer.play();
+                    await preloadNextChunk(); // Preload the next chunk in parallel
+                } else {
+                    console.log('All chunks played.');
+                }
+            };
+        }
+
+        const longText = `As you are standing and looking at another statue of George Washington.
+         you are between the GW hospital on your right and the School of Medicine and Health Sciences on your left, The health of his legacy should be in good hands.
+         Now look to your right at the hospital and left at the Medical School and imagine being a surgeon at the GWU hospital, you get a stat call to go to the ER.
+and there you see the President of the United States on a hospital gurney.
+On March 30, 1981, President Raegan walked into the GW lobby and collapsed with no one knowing he had been shot.
+He was urgently brought to the ER in very critical condition. Dr Giordanno, a surgeon and head of the trauma team, quickly assessed the President and found the bullet wound.
+Imagine the pressure of having a President’s life literally in your hands.
+Giordano later shared that: President Reagan was conscious the whole time the trauma team was treating him.
+The conversation with the doctors was mostly “matter of fact,” but despite his obvious pain the president cracked a few jokes.
+“President Reagan said to me, ‘I hope you’re all Republicans,’ and I replied, ‘Today, we’re all Republicans,’”
+Dr Giordano says. “I’m not a Republican, but I thought for this one day I could be one.”.`;
+
+        window.onload = () => playTextAsAudio(longText); // Play the entire text as audio
+    </script>
+</body>
+</html>
